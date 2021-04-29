@@ -12,23 +12,6 @@ prevBranchFile() {
     echo $(git rev-parse --show-toplevel)/.git/PREV_BRANCH
 }
 
-genbranch() {
-  if [ $# -ne 2 ]; then
-    echo "Usage: genbranch -[f|b] <commit comment>"
-    return
-  fi
-  if [ "$1" == "-f" ]; then
-    PREFIX="feature"
-  elif [ "$1" == "-b" ]; then
-    PREFIX="bugfix"
-  else
-    echo "Usage: genbranch -[f|b] <commit comment>"
-    return
-  fi
-  RESULT=$(echo "$2" | sed "s/[(][^)]*[)]//g" | sed "s/[^ a-zA-Z0-9 -]//g" | sed "s/ \+/-/g" | sed "s/-$//g")
-  git checkout -b $PREFIX/$RESULT
-}
-
 greturn() {
   if [ $# == 1 ]; then
     git checkout $(sed "$1q;d" $(prevBranchFile))
@@ -44,6 +27,15 @@ echoMissingBranchHistory() {
 
 }
 
+# This is a wrapper function to add some shortcuts to git, such as:
+#    - 'git checkout return' checks out the branch that has been checked out before the current branch
+#    - 'git checkout return <n>' checks out the nth branch that has been checked out before the current branch
+#    - 'git branch current' returns the name of the current branch
+#    - 'git push publish' is a wrapper for 'git push --set-upstream origin $(git branch current)'
+#    - 'git branch -gf <JIRA_commit_comment>' generates a feature branch name from the JIRA commit comment 
+#                                             and checks out a new branch of this name
+#    - 'git branch -gb <JIRA_commit_comment>' generates a bugfix  branch name from the JIRA commit comment 
+#                                             and checks out a new branch of this name
 git() {
 #  if [ -d .git ]; then
     if [[ "$1" == checkout ]] && [[ "$2" == "return" ]] && [[ $# == 2 ]]; then
@@ -85,6 +77,14 @@ git() {
       "$(which git)" "$@"
     elif [[ "$1" == branch ]] && [[ "$2" == current ]]; then
       git rev-parse --abbrev-ref HEAD
+    elif [[ "$1" == branch ]] && [[ "$2" =~ ^\-g[f|b]{1}$ ]] && [[ $# == 3 ]]; then
+      if [ "$2" == "-gf" ]; then
+        PREFIX="feature"
+      elif [ "$2" == "-gb" ]; then
+        PREFIX="bugfix"
+      fi
+      RESULT=$(echo "$3" | sed "s/[(][^)]*[)]//g" | sed "s/[^ a-zA-Z0-9 -]//g" | sed "s/ \+/-/g" | sed "s/-$//g")
+      git checkout -b $PREFIX/$RESULT
     elif [[ "$1" == push ]] && [[ "$2" == publish ]]; then
       git push &> tempfile
       $(cat tempfile | grep set-upstream)
